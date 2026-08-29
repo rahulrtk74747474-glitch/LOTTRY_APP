@@ -1,32 +1,32 @@
 # FairDraw
 
-FairDraw is a modern, installable raffle prototype for web, Android, and iOS. The current release is intentionally **demo-credit only**: it does not accept deposits, process payments, or pay cash prizes.
+FairDraw is a responsive web/PWA + Android/iOS prototype for a verified-member draw platform.
 
-## What is included
+## Current V2 sandbox
 
-- Four ticket tiers: ₹10, ₹100, ₹1,000, and ₹10,000
-- A fixed 1,000-ticket capacity per draw
-- Interactive prize-pool and payout calculations
-- Unique demo ticket generation
-- Responsive, installable PWA experience
-- Capacitor Android and iOS shells
-- GitHub Actions workflow for a test Android APK
+The `feature/ad-funded-draw-v2` branch adds the requested daily/weekly/monthly qualification model while keeping regulated cash features disabled until approvals are complete.
 
-## Payout interpretation
+- Permanent member ID
+- Account/profile and verification dashboard
+- Phone verification sandbox flow
+- Daily target: 10 verified ad completions
+- Weekly target: 50 verified ad completions
+- Monthly target: 300 verified ad completions
+- Unique sandbox ticket generation after qualification
+- Below 500 entrants: up to 10 winners
+- 500+ entrants: up to 200 winners
+- User-requested top-three waterfall: 30%, 14%, 1.4% of the allocated pool
+- Rank 4+ rule: value equivalent to 10 verified ad completions
+- Referral economics supported in the calculation engine
+- Web/PWA, Android Capacitor and iOS Capacitor targets
 
-For a sold-out 1,000-ticket draw:
+See [AD_FUNDED_DRAW_SPEC.md](AD_FUNDED_DRAW_SPEC.md) for economics, international rollout, anti-fraud, security and compliance gates. The calculation code lives in `lib/economics.ts`.
 
-| Rank | Return |
-|---|---:|
-| 1 | 22% of total pool |
-| 2 | 11% of total pool |
-| 3 | 8% of total pool |
-| 4–50 | 100% of ticket price |
-| 51–100 | 80% of ticket price |
-| 101–200 | 50% of ticket price |
-| 201–1,000 | 30% of ticket price |
+## Critical ad rule
 
-Ranks 1–3 receive their percentage prize without an additional ticket refund. On that interpretation, total payout is 78.7% and the pre-cost remainder is 21.3%. See [PAYOUT_SPEC.md](PAYOUT_SPEC.md).
+FairDraw must never ask or incentivize users to click ads. The sandbox uses the concept of a **verified ad completion**, not an ad click. Production qualification must come from an approved ad integration and trusted/server-verifiable events.
+
+Cash, gift-card, bank-withdrawal and real-lottery functionality is not enabled in the sandbox. These features require territory-specific legal/licensing review plus app-store, ad-network, payment-provider, KYC/AML, tax, age and location controls.
 
 ## Run the website
 
@@ -43,41 +43,37 @@ Build:
 npm run build
 ```
 
-## Install as a web app
-
-- Android/Chrome: open the deployed website, tap the browser menu, then **Install app**.
-- iPhone/Safari: open the website, tap **Share**, then **Add to Home Screen**.
-
-## Android test APK
-
-The repository workflow **Build Android test APK** creates a debug APK after each push and can also be started manually from GitHub Actions.
-
-Local Android setup:
+## Android
 
 ```bash
 npm install
 npm run build
-npx cap add android
 npx cap sync android
 npx cap open android
 ```
 
-Open the Android project in Android Studio and build an APK or signed App Bundle.
+Use Android Studio to build a test APK or signed App Bundle.
 
-## iOS test app
+## iOS
 
-iOS builds require macOS, Xcode, and an Apple Developer account:
+macOS, Xcode and an Apple Developer account are required.
 
 ```bash
 npm install
 npm run build
-npx cap add ios
 npx cap sync ios
 npx cap open ios
 ```
 
-Choose your signing team in Xcode, then run on a device or archive for TestFlight.
+Choose the signing team in Xcode, then run on a device or archive for TestFlight.
 
-## Before any real-money release
+## Production security requirements
 
-Do not add payment collection, wallets, withdrawals, or cash payouts until written legal confirmation, required lottery/gaming permissions, payment-provider approval, KYC/AML controls, tax handling, age and location controls, responsible-play tooling, and an independently reviewed draw system are in place. See [LEGAL-COMPLIANCE.md](LEGAL-COMPLIANCE.md) and [SECURITY.md](SECURITY.md).
+- server-authoritative qualification and ticket minting;
+- signed/server-verified ad callbacks where supported;
+- idempotent ad events, referrals, ledger entries and payouts;
+- immutable draw cutoffs and auditable winner selection;
+- fraud/risk controls for devices, accounts, referrals and payout destinations;
+- MFA/step-up checks for payout changes;
+- managed secrets, encryption, rate limiting and immutable admin audit logs;
+- geo-restriction, age controls, KYC and territory feature flags.
