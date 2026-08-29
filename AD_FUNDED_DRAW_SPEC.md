@@ -6,15 +6,43 @@ Status: **prototype / compliance-gated**. Real cash, vouchers, bank withdrawals,
 
 Each verified member receives a permanent member ID and can qualify for three draw cadences:
 
-| Draw | Qualification target |
-|---|---:|
-| 48-hour | 20 verified ad completions during the active 48-hour window |
-| Weekly | 50 verified ad completions during the week |
-| Monthly | 300 verified ad completions during the month before cutoff |
+| Draw | Qualification target | Opening model |
+|---|---:|---|
+| 48-hour | 20 verified ad completions | profit-protected short window |
+| Weekly | 50 verified ad completions | a new 7-day cohort opens every day |
+| Monthly | 300 verified ad completions | a new 30-day cohort opens every day |
 
 The original 24-hour / 10-completion draw is removed from the production design because low-participation cases could pay more than the pool after the requested winner-return rules. The 48-hour / 20-completion design provides materially safer economics while preserving a frequent draw.
 
-A qualifying ticket is unique and bound to one member and one draw. Production eligibility must be server-authoritative; the client must never be able to mint a ticket by itself.
+A qualifying ticket is unique and bound to one member and one specific draw cohort. Production eligibility must be server-authoritative; the client must never be able to mint a ticket by itself.
+
+## Rolling weekly and monthly cohorts
+
+Weekly and monthly draws are continuous rather than one shared calendar draw.
+
+For weekly draws:
+
+- a cohort opens every calendar day;
+- the cohort remains a seven-calendar-date draw;
+- a cohort opened on **2 Jan** publishes its scheduled result on **8 Jan**;
+- the cohort opened on **3 Jan** publishes on **9 Jan**;
+- the cohort opened on **4 Jan** publishes on **10 Jan**, and so on.
+
+Monthly uses the same rolling idea with a 30-day cohort. A new monthly cohort opens every day while older monthly cohorts continue toward their own result dates.
+
+Every cohort must have its own immutable `draw_id`, qualification counter, eligible-member set, ticket set, revenue ledger, referral liabilities, profit-guard calculation, result commitment, ranked result and payout ledger.
+
+Default identifiers are derived from the opening date, for example:
+
+- `FD-W-20260102` for the weekly cohort opened 2 Jan 2026;
+- `FD-W-20260103` for the next day's weekly cohort;
+- `FD-M-20260102` for the 30-day monthly cohort opened 2 Jan 2026.
+
+A verified member can enter multiple overlapping cohorts, but each cohort requires its **own qualification activity**. One set of 50 verified ad completions cannot create tickets in every active weekly cohort, and one set of 300 cannot create tickets in every active monthly cohort.
+
+For the first production version, allow at most **one ticket per verified member per cohort**. This keeps the probability model understandable and reduces account/ad farming risk. Additional-ticket mechanics should not be added until economics, policy and fraud behavior are measured.
+
+The rolling cohort helper is implemented in `lib/rolling-draws.ts`.
 
 ## Important ad-policy correction
 
@@ -37,15 +65,17 @@ Ranks 1–3 consume 45.4% of the pool, leaving **54.6%** before the rank-4+ paym
 
 ## Profit-protection guardrails
 
-The backend must calculate draw economics from **settled server-side revenue**, not estimated client eCPM. A real-value draw cannot close merely because its clock expired.
+The backend must calculate each cohort's economics from **settled server-side revenue**, not estimated client eCPM. A real-value draw cannot close merely because its clock expired.
 
 Default guardrails:
 
 - minimum qualified entrants: **12**;
-- referral campaign budget: maximum **5% of the settled pool**;
-- operating/fraud/compliance risk reserve: **10% of the settled pool**;
-- minimum target operator remainder after known payouts and the operating/risk reserve: **10% of the settled pool**;
+- referral campaign budget: maximum **5% of that cohort's settled pool**;
+- operating/fraud/compliance risk reserve: **10% of that cohort's settled pool**;
+- minimum target operator remainder after known payouts and the operating/risk reserve: **10% of that cohort's settled pool**;
 - short-draw rollover: another **48 hours** when the published close conditions are not met.
+
+Weekly/monthly cohorts are also evaluated independently. Any rollover, extension, cancellation/refund-equivalent handling or other failure mode must follow rules published before entry and must never be changed after seeing who would win.
 
 The rollover rule must be disclosed before users enter. Once a real-value draw is formally locked for winner selection, its rules and entry set cannot be changed opportunistically.
 
@@ -55,11 +85,11 @@ Referral campaigns are budget-limited. Production must stop accepting new promot
 
 Let:
 
-- `N` = qualified entrants
-- `r` = actual net revenue per verified ad completion assigned to this pool
+- `N` = qualified entrants in one cohort
+- `r` = actual net revenue per verified ad completion assigned to that cohort
 - `V` = required ad completions per entrant (20 for 48-hour, 50 weekly, 300 monthly)
 - `W` = winner count (`min(200,N)` when N >= 500; otherwise `min(10,N)`)
-- `R` = successful referrals credited during the accounting period
+- `R` = successful referrals credited to that cohort/accounting period
 
 Then:
 
@@ -71,14 +101,14 @@ Then:
 - Operating/risk reserve `= 0.10P`
 - Protected operator target `= 0.10P`
 
-A draw passes the profit guard only when:
+A cohort passes the profit guard only when:
 
 1. `N >= 12`; and
 2. after top-three prizes, rank-return prizes, accepted referral liabilities, and the 10% operating/risk reserve, at least another 10% of `P` remains.
 
 If the short draw fails this test at the scheduled cutoff, entries roll into the next pre-disclosed 48-hour window instead of forcing a loss-making result.
 
-The implementation is in `lib/economics.ts`.
+The economics implementation is in `lib/economics.ts`.
 
 ## Why 48 hours is safer
 
@@ -92,10 +122,15 @@ These are structural percentages under the configured prize rules, not guarantee
 
 ## No double counting
 
-The same ad revenue cannot fund the 48-hour, weekly, and monthly pools simultaneously. Production accounting must use one of these approaches:
+Rolling draws increase the number of available entry opportunities, but **they do not create revenue by accounting duplication**.
 
-1. assign each verified ad revenue event to exactly one draw pool; or
-2. split each settled revenue event by a fixed allocation whose percentages total 100%.
+Every verified ad event must contain an immutable allocation such as `cohort_id` (or an auditable revenue-allocation record) before it can advance qualification. That event can advance only one cohort unless its settled revenue is explicitly split into fixed fractions whose total is no more than 100%.
+
+Examples:
+
+- 50 completions allocated to `FD-W-20260102` qualify only for that weekly cohort;
+- entering `FD-W-20260103` requires another 50 eligible completions allocated to that cohort;
+- an event used in a weekly cohort cannot simultaneously be booked at full value into a monthly or short-draw pool.
 
 Settled publisher revenue, not client-estimated eCPM, must be the source of truth.
 
@@ -114,13 +149,16 @@ Production launch should require:
 
 ## Security architecture
 
-- Never trust ad completion, ticket eligibility, draw closing, winner selection, balance, or withdrawal values sent by the client.
+- Never trust ad completion, cohort selection, ticket eligibility, draw closing, winner selection, balance, or withdrawal values sent by the client.
 - Use signed server-to-server ad callbacks when supported.
-- Use idempotency keys for ad events, tickets, wallet ledger entries, payouts, and referrals.
+- Require unique network event IDs and idempotency keys so replayed callbacks cannot create duplicate progress.
+- Persist an immutable `cohort_id` allocation for each accepted ad/revenue event.
+- Enforce one ticket per verified member per cohort in the initial production rules.
+- Use idempotency keys for tickets, wallet ledger entries, payouts, referrals and result publication.
 - Use an append-only double-entry or auditable ledger for monetary amounts.
 - Encrypt sensitive data at rest and in transit; store secrets only in a managed secret store.
 - Apply rate limits by account/device/IP/risk score.
-- Detect emulator farms, duplicated device identities, impossible completion rates, repeated payout destinations, referral rings, and account farming.
+- Detect emulator farms, duplicated device identities, impossible completion rates, repeated payout destinations, referral rings, overlapping-account fingerprints and account farming.
 - Require MFA/step-up verification for payout-detail changes and withdrawals.
 - Keep draw inputs immutable after cutoff and publish a verifiable draw commitment/hash before winner selection.
 - Separate admin roles and require strong MFA; log every privileged action to immutable audit storage.
