@@ -1,0 +1,12 @@
+{
+  "name": "FairDraw — Transparent Draws",
+  "short_name": "FairDraw",
+  "description": "A transparent, credits-only raffle prototype.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1012",
+  "theme_color": "#0b1012",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
