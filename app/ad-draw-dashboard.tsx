@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, Clock3, Eye, Gift, ShieldCheck, Sparkles, Ticket, Trophy } from "lucide-react";
+import { CalendarDays, Check, Clock3, Eye, Gift, Layers3, ShieldCheck, Sparkles, Ticket, Trophy } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -11,28 +11,59 @@ import {
   DRAW_RULES,
   type DrawCadence,
 } from "@/lib/economics";
+import {
+  formatRollingDate,
+  getActiveRollingCohorts,
+  getRollingDrawCohort,
+  type RollingDrawCohort,
+} from "@/lib/rolling-draws";
 
 const cadenceOrder: DrawCadence[] = ["daily", "weekly", "monthly"];
-const sandboxStart: Record<DrawCadence, number> = { daily: 0, weekly: 0, monthly: 0 };
 
 function cadenceDescription(cadence: DrawCadence) {
-  if (cadence === "daily") return "Complete the qualification target during the active 48-hour window.";
-  if (cadence === "weekly") return "Completions accumulate during the active weekly qualification window.";
-  return "Completions accumulate during the active monthly qualification window.";
+  if (cadence === "daily") return "Complete the qualification target during the active 48-hour short-draw window.";
+  if (cadence === "weekly") return "A new seven-day cohort opens every day. Each cohort has its own 50-completion qualification and result date.";
+  return "A new 30-day cohort opens every day. Each cohort has its own 300-completion qualification and result date.";
+}
+
+function cohortTitle(cohort: RollingDrawCohort) {
+  return `${formatRollingDate(cohort.opensAt)} → ${formatRollingDate(cohort.resultDate)}`;
 }
 
 export function AdDrawDashboard() {
   const [selected, setSelected] = useState<DrawCadence>("daily");
-  const [progress, setProgress] = useState(sandboxStart);
+  const [today] = useState(() => new Date());
+  const [progress, setProgress] = useState<Record<string, number>>({});
   const [demoTicket, setDemoTicket] = useState<string | null>(null);
 
+  const rollingCohorts = useMemo(
+    () => selected === "weekly" || selected === "monthly"
+      ? getActiveRollingCohorts(selected, today, 5)
+      : [],
+    [selected, today],
+  );
+
+  const defaultCohort = useMemo(
+    () => selected === "weekly" || selected === "monthly"
+      ? getRollingDrawCohort(selected, today)
+      : null,
+    [selected, today],
+  );
+
+  const [selectedCohortIds, setSelectedCohortIds] = useState<Record<"weekly" | "monthly", string>>(() => ({
+    weekly: getRollingDrawCohort("weekly", today).id,
+    monthly: getRollingDrawCohort("monthly", today).id,
+  }));
+
+  const selectedCohort = selected === "weekly" || selected === "monthly"
+    ? rollingCohorts.find((cohort) => cohort.id === selectedCohortIds[selected]) ?? defaultCohort
+    : null;
+
   const rule = DRAW_RULES[selected];
-  const completed = progress[selected];
+  const progressKey = selected === "daily" ? "48H-current" : selectedCohort?.id ?? `${selected}-current`;
+  const completed = progress[progressKey] ?? 0;
   const qualified = completed >= rule.requiredVerifiedAdViews;
 
-  // A deliberately conservative sample: enough referrals are supplied to use
-  // the full 5% campaign budget, so the displayed protected margin does not
-  // depend on assuming zero referral cost.
   const sample = useMemo(
     () => calculateDrawEconomics({
       cadence: selected,
@@ -46,15 +77,17 @@ export function AdDrawDashboard() {
   function recordSandboxCompletion() {
     setProgress((current) => ({
       ...current,
-      [selected]: Math.min(current[selected] + 1, DRAW_RULES[selected].requiredVerifiedAdViews),
+      [progressKey]: Math.min((current[progressKey] ?? 0) + 1, rule.requiredVerifiedAdViews),
     }));
     setDemoTicket(null);
   }
 
   function createSandboxTicket() {
     if (!qualified) return;
-    const prefix = selected === "daily" ? "48H" : selected === "weekly" ? "W" : "M";
-    setDemoTicket(`FD-${prefix}-${crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`);
+    const drawId = selected === "daily"
+      ? `FD-48H-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
+      : selectedCohort?.id ?? `FD-${selected.toUpperCase()}`;
+    setDemoTicket(`${drawId}-${crypto.randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase()}`);
   }
 
   return (
@@ -62,20 +95,17 @@ export function AdDrawDashboard() {
       <div className="section-heading">
         <div>
           <span className="section-kicker">FairDraw V2 sandbox</span>
-          <h2 id="ad-draw-title">48-hour, weekly and monthly qualification</h2>
+          <h2 id="ad-draw-title">Continuous rolling draws</h2>
         </div>
         <p>
-          The short draw now uses a 48-hour window to improve unit economics. This build counts sandbox verified-ad completions, never clicks. Production ad callbacks and cash-equivalent rewards stay disabled until network and territory approvals are complete.
+          Weekly and monthly draws now overlap: a fresh cohort opens every calendar day while older cohorts continue toward their own result dates. Verified ad revenue and qualification are isolated per cohort so the same completion is never counted twice.
         </p>
       </div>
 
       <div className="tier-grid" role="list" aria-label="Draw qualification periods">
         {cadenceOrder.map((cadence) => {
           const target = DRAW_RULES[cadence].requiredVerifiedAdViews;
-          const value = progress[cadence];
           const isSelected = selected === cadence;
-          const isQualified = value >= target;
-
           return (
             <button
               key={cadence}
@@ -89,28 +119,62 @@ export function AdDrawDashboard() {
             >
               <div className="draw-card-top">
                 <span className="draw-icon">{cadence === "daily" ? <Clock3 /> : <CalendarDays />}</span>
-                <span className="status-pill"><i /> {isQualified ? "Qualified" : "Open"}</span>
+                <span className="status-pill"><i /> {cadence === "daily" ? "48-hour" : "Daily opening"}</span>
               </div>
               <div className="draw-price">{target}</div>
-              <span className="draw-label">verified ad completions</span>
+              <span className="draw-label">verified ad completions per ticket</span>
               <div className="draw-pool">
-                <span>{DRAW_RULES[cadence].label} progress</span><strong>{value} / {target}</strong>
+                <span>{DRAW_RULES[cadence].label}</span>
+                <strong>{cadence === "weekly" ? "7 days" : cadence === "monthly" ? "30 days" : "48 hours"}</strong>
               </div>
-              <Progress value={(value / target) * 100} aria-label={`${value} of ${target} sandbox ad completions`} />
               <div className="draw-meta">
                 <span><Eye /> No forced clicks</span>
-                <span>{isQualified ? <><Check /> Ready</> : `${target - value} left`}</span>
+                <span>{cadence === "daily" ? "Profit protected" : "New cohort daily"}</span>
               </div>
             </button>
           );
         })}
       </div>
 
+      {(selected === "weekly" || selected === "monthly") && (
+        <section className="purchase-panel" aria-labelledby="rolling-cohorts-title">
+          <div className="purchase-summary">
+            <span className="section-kicker"><Layers3 /> Rolling cohorts</span>
+            <h2 id="rolling-cohorts-title">Choose the draw you are qualifying for</h2>
+            <p>
+              Example: a weekly cohort opened on 2 Jan publishes its result on 8 Jan; the cohort opened on 3 Jan publishes on 9 Jan. The same pattern continues every day.
+            </p>
+          </div>
+          <div className="purchase-controls">
+            <label>Currently active cohorts</label>
+            {rollingCohorts.map((cohort) => {
+              const active = selectedCohort?.id === cohort.id;
+              const cohortProgress = progress[cohort.id] ?? 0;
+              return (
+                <Button
+                  key={cohort.id}
+                  type="button"
+                  variant={active ? "default" : "outline"}
+                  onClick={() => {
+                    setSelectedCohortIds((current) => ({ ...current, [selected]: cohort.id }));
+                    setDemoTicket(null);
+                  }}
+                >
+                  <CalendarDays /> {cohortTitle(cohort)} · {cohortProgress}/{rule.requiredVerifiedAdViews}
+                </Button>
+              );
+            })}
+            <small>Each cohort has a separate progress counter, ticket list, revenue ledger and result.</small>
+          </div>
+        </section>
+      )}
+
       <section className="purchase-panel" aria-labelledby="qualification-title">
         <div className="purchase-summary">
           <span className="section-kicker">{DRAW_RULES[selected].label} entry</span>
           <h2 id="qualification-title">{completed} / {rule.requiredVerifiedAdViews} completed</h2>
           <p>{cadenceDescription(selected)}</p>
+          {selectedCohort && <p><strong>Selected cohort:</strong> {cohortTitle(selectedCohort)} · {selectedCohort.id}</p>}
           <div className="pool-stat">
             <Gift />
             <span>
@@ -129,7 +193,7 @@ export function AdDrawDashboard() {
           <Button size="lg" variant="outline" onClick={createSandboxTicket} disabled={!qualified}>
             <Ticket /> Generate unique sandbox ticket
           </Button>
-          <small>For testing only. This button does not display a live ad and creates no monetary entitlement.</small>
+          <small>One verified completion is assigned to one cohort only. A ticket for tomorrow's weekly/monthly cohort requires separate qualification activity.</small>
         </div>
 
         {demoTicket && (
@@ -157,14 +221,14 @@ export function AdDrawDashboard() {
       <div className="math-note">
         <ShieldCheck />
         <p>
-          <strong>Automatic rollover rule:</strong> a live-value draw may close only when at least {BUSINESS_GUARDRAILS.minimumEntrants} qualified members are present and the settled pool still leaves the {BUSINESS_GUARDRAILS.operatingAndRiskReservePoolShare * 100}% operating/risk reserve plus the {BUSINESS_GUARDRAILS.targetOperatorMarginPoolShare * 100}% target operator margin after known prizes and referral liabilities. Otherwise the short draw rolls forward by another {BUSINESS_GUARDRAILS.shortDrawRolloverHours} hours under pre-published rules.
+          <strong>Automatic rollover rule:</strong> every cohort is evaluated independently. It may close only when at least {BUSINESS_GUARDRAILS.minimumEntrants} qualified members are present and its own settled pool still leaves the {BUSINESS_GUARDRAILS.operatingAndRiskReservePoolShare * 100}% operating/risk reserve plus the {BUSINESS_GUARDRAILS.targetOperatorMarginPoolShare * 100}% target operator margin after known prizes and referral liabilities.
         </p>
       </div>
 
       <div className="math-note">
         <Sparkles />
         <p>
-          <strong>Accounting rule:</strong> one unit of settled ad revenue can fund only one pool allocation. The 48-hour, weekly and monthly pools must not count the same revenue three times.
+          <strong>No double counting:</strong> every verified ad-revenue event receives one immutable cohort allocation. Overlapping weekly/monthly draws can therefore grow total activity and revenue, but they cannot claim the same revenue event more than once.
         </p>
       </div>
 
