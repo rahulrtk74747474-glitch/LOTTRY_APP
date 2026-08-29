@@ -3,6 +3,8 @@ name: Build Android test APK
 on:
   workflow_dispatch:
   push:
+    branches: [main, feature/ad-funded-draw-v2]
+  pull_request:
     branches: [main]
 
 permissions:
