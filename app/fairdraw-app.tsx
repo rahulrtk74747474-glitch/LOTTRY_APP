@@ -67,10 +67,10 @@ export function FairDrawApp({ member, initialTickets }: { member: MemberProfile;
 
       <section className="hero" id="top">
         <div className="hero-copy">
-          <div className="eyebrow"><Sparkles /> Global-ready qualification platform</div>
-          <h1>One verified member. Three draw timelines.</h1>
+          <div className="eyebrow"><Sparkles /> Profit-protected qualification platform</div>
+          <h1>One verified member. Three sustainable draw timelines.</h1>
           <p>
-            FairDraw V2 is being built around verified identity, unique tickets, auditable qualification records and daily, weekly and monthly draw windows. The sandbox deliberately does not create cash entitlement while territory and ad-network approvals are pending.
+            FairDraw V2 is built around verified identity, unique tickets, auditable qualification records and 48-hour, weekly and monthly draw windows. A draw never closes merely because a clock expired: production rules must first satisfy the published participation, reserve and margin guardrails.
           </p>
           <div className="hero-actions">
             <Button size="lg" className="primary-cta" onClick={() => document.querySelector("#ad-draws")?.scrollIntoView({ behavior: "smooth" })}>
@@ -93,7 +93,7 @@ export function FairDrawApp({ member, initialTickets }: { member: MemberProfile;
               <span>V2 SANDBOX</span>
               <span className="live-dot"><i /> ACTIVE</span>
             </div>
-            <div className="ticket-price"><small>Daily target</small>10</div>
+            <div className="ticket-price"><small>48-hour target</small>20</div>
             <div className="ticket-code">verified ad completions</div>
             <div className="ticket-divider" />
             <div className="ticket-stats">
@@ -102,7 +102,7 @@ export function FairDrawApp({ member, initialTickets }: { member: MemberProfile;
             </div>
             <div className="ticket-footer">
               <span><LockKeyhole /> No forced clicks</span>
-              <span>Unique tickets</span>
+              <span>Profit guard</span>
             </div>
           </article>
           <div className="winner-float"><Users /><span><small>Winner modes</small>10 / 200</span></div>
