@@ -127,14 +127,19 @@ export function MemberHub({ initialMember, initialTickets }: { initialMember: Me
           <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
             <DialogTrigger asChild><Button variant="outline"><UserRound /> Edit profile</Button></DialogTrigger>
             <DialogContent className="member-dialog">
-              <DialogHeader><DialogTitle>Profile details</DialogTitle><DialogDescription>Changes are stored securely against your member ID.</DialogDescription></DialogHeader>
+              <DialogHeader className="member-dialog-header">
+                <div className="member-dialog-heading">
+                  <span><UserRound /></span>
+                  <div><DialogTitle>Profile details</DialogTitle><DialogDescription>Changes are securely linked to {member.memberId}.</DialogDescription></div>
+                </div>
+              </DialogHeader>
               <div className="dialog-fields">
                 <div><Label htmlFor="display-name">Full name</Label><Input id="display-name" value={name} onChange={(event) => setName(event.target.value)} /></div>
                 <div><Label htmlFor="email">Verified email</Label><Input id="email" value={member.email} disabled /></div>
                 <div><Label htmlFor="profile-phone">Phone number</Label><Input id="profile-phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+919876543210" /></div>
               </div>
               {message && <p className="form-message">{message}</p>}
-              <DialogFooter><Button onClick={saveProfile} disabled={busy}>{busy ? "Saving…" : "Save profile"}</Button></DialogFooter>
+              <DialogFooter className="member-dialog-footer"><Button onClick={saveProfile} disabled={busy}>{busy ? "Saving…" : "Save profile"}</Button></DialogFooter>
             </DialogContent>
           </Dialog>
           <a className="signout-link" href="/signout-with-chatgpt?return_to=%2F"><LogOut /> Sign out</a>
@@ -157,10 +162,15 @@ export function MemberHub({ initialMember, initialTickets }: { initialMember: Me
               <Dialog open={phoneOpen} onOpenChange={setPhoneOpen}>
                 <DialogTrigger asChild><button type="button" className="row-action">{member.phoneVerified ? "Change" : "Verify"}<ChevronRight /></button></DialogTrigger>
                 <DialogContent className="member-dialog">
-                  <DialogHeader><DialogTitle>Verify phone — sandbox</DialogTitle><DialogDescription>No SMS is sent in this prototype. Use the on-screen demo code.</DialogDescription></DialogHeader>
+                  <DialogHeader className="member-dialog-header">
+                    <div className="member-dialog-heading">
+                      <span><Phone /></span>
+                      <div><DialogTitle>Verify phone — sandbox</DialogTitle><DialogDescription>No SMS is sent in this prototype. Use the on-screen demo code.</DialogDescription></div>
+                    </div>
+                  </DialogHeader>
                   {!challengeId ? <div className="dialog-fields"><div><Label htmlFor="verify-phone">Phone in international format</Label><Input id="verify-phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+919876543210" /></div></div> : <div className="otp-stage"><span>Demo code: <strong>{demoCode}</strong></span><Label htmlFor="phone-otp">Enter 6-digit code</Label><InputOTP id="phone-otp" maxLength={6} value={otp} onChange={setOtp}><InputOTPGroup>{[0,1,2,3,4,5].map((index) => <InputOTPSlot key={index} index={index} />)}</InputOTPGroup></InputOTP></div>}
                   {message && <p className="form-message">{message}</p>}
-                  <DialogFooter><Button onClick={challengeId ? verifyPhone : startPhoneVerification} disabled={busy || (Boolean(challengeId) && otp.length !== 6)}>{busy ? "Please wait…" : challengeId ? "Verify code" : "Generate demo code"}</Button></DialogFooter>
+                  <DialogFooter className="member-dialog-footer"><Button onClick={challengeId ? verifyPhone : startPhoneVerification} disabled={busy || (Boolean(challengeId) && otp.length !== 6)}>{busy ? "Please wait…" : challengeId ? "Verify code" : "Generate demo code"}</Button></DialogFooter>
                 </DialogContent>
               </Dialog>
             </div>
